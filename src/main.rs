@@ -7,6 +7,7 @@ mod core;
 mod db;
 mod events;
 mod ipfs;
+mod lifecycle;
 mod mcp;
 mod metrics;
 mod session_live;
