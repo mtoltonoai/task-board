@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+import { dashboardTaskHref } from './taskSearch'
 import { Link } from 'react-router-dom'
 import { useScrollRestoration } from './scrollRestore'
 import { useBoardContext } from './Layout'
@@ -64,8 +66,8 @@ export default function Home() {
 
       {/* Headline stats. */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Open tasks" value={openTasks} sub={`${allTasks} total`} />
-        <StatCard label="In progress" value={totals.in_progress ?? 0} sub={`${totals.blocked ?? 0} blocked`} />
+        <StatCard to={dashboardTaskHref('open')} label="Open tasks" value={openTasks} sub={`${allTasks} total`} />
+        <StatCard to={dashboardTaskHref('in_progress')} label="In progress" value={totals.in_progress ?? 0} sub={<Link to={dashboardTaskHref('blocked')} className="underline">{totals.blocked ?? 0} blocked</Link>} />
         <StatCard label="Projects" value={active.length} sub={`${projects.length - active.length} archived`} />
         <StatCard label="Agents online" value={onlineAgents} sub={`${agents.length} total`} />
       </div>
@@ -73,13 +75,14 @@ export default function Home() {
       {/* Cross-project status breakdown. */}
       <div className="mb-6 flex flex-wrap gap-2">
         {TASK_COLUMNS.map((s) => (
-          <span
+          <Link
+            to={dashboardTaskHref(s)}
             key={s}
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_CHIP[s]}`}
           >
             {STATUS_LABEL[s]}
             <span className="font-mono">{totals[s] ?? 0}</span>
-          </span>
+          </Link>
         ))}
       </div>
 
@@ -193,21 +196,14 @@ export default function Home() {
                 0,
               )
               return (
-                <li key={p.id}>
-                  <Link
-                    to={`/projects/${p.id}`}
-                    className="flex items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 hover:border-sky-500/40"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-                    <span className="text-[11px] text-[var(--color-muted)]" title="open / in-progress / blocked">
-                      {open} open
-                      {(counts.in_progress ?? 0) > 0 && ` · ${counts.in_progress} wip`}
-                      {(counts.blocked ?? 0) > 0 && (
-                        <span className="text-rose-700 dark:text-rose-300"> · {counts.blocked} blocked</span>
-                      )}
-                    </span>
-                    <span className="text-[11px] text-[var(--color-muted)]">{relTime(p.updated_at)}</span>
-                  </Link>
+                <li key={p.id} className="flex items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2">
+                  <Link to={`/projects/${p.id}`} className="min-w-0 flex-1 truncate text-sm hover:underline">{p.name}</Link>
+                  <span className="text-[11px] text-[var(--color-muted)]" title="open / in-progress / blocked">
+                    <Link className="hover:underline" to={dashboardTaskHref('active', p.id)}>{open} open</Link>
+                    {(counts.in_progress ?? 0) > 0 && <> · <Link className="hover:underline" to={dashboardTaskHref('in_progress', p.id)}>{counts.in_progress} wip</Link></>}
+                    {(counts.blocked ?? 0) > 0 && <> · <Link className="text-rose-700 hover:underline dark:text-rose-300" to={dashboardTaskHref('blocked', p.id)}>{counts.blocked} blocked</Link></>}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-muted)]">{relTime(p.updated_at)}</span>
                 </li>
               )
             })}
@@ -275,11 +271,16 @@ export default function Home() {
   )
 }
 
-function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
+function StatCard({ label, value, sub, to }: { label: string; value: number; sub?: ReactNode; to?: string }) {
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-3">
-      <div className="text-2xl font-semibold tabular-nums">{value}</div>
-      <div className="text-xs text-[var(--color-muted)]">{label}</div>
+      {to ? <Link to={to} className="block rounded hover:underline focus-visible:outline">
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+        <div className="text-xs text-[var(--color-muted)]">{label}</div>
+      </Link> : <>
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+        <div className="text-xs text-[var(--color-muted)]">{label}</div>
+      </>}
       {sub && <div className="mt-0.5 text-[11px] text-[var(--color-muted)]/70">{sub}</div>}
     </div>
   )
