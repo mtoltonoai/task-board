@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useScrollRestoration } from './scrollRestore'
 import { api, type TaskStatus, type TaskSummary } from './api'
 import { useBoardContext } from './Layout'
 import { commentTask, updateTask, useProjects } from './resources'
+import { readTaskFilters, taskSearchParams, taskSearchQueries, SEARCH_STATUSES, type TaskFilters, type SearchStatus } from './taskSearch'
 import { Identity, STATUS_LABEL, StatusChip, TASK_COLUMNS, relTime } from './ui'
 
 // Cross-project search + a personal "my tasks" view. Unlike the per-project Board, this queries
@@ -23,61 +24,57 @@ export default function Search() {
   // ANY filter param is present the URL is authoritative — so `?status=blocked` with no assignee
   // means "anyone blocked", and `?assignee=<you>&status=blocked` is the bookmarkable "blocked on me".
   const [searchParams, setSearchParams] = useSearchParams()
-  const hadParams = ['q', 'assignee', 'status'].some((k) => searchParams.has(k))
-  const [q, setQ] = useState(() => searchParams.get('q') ?? '')
-  const [assignee, setAssignee] = useState(() =>
-    searchParams.has('assignee') ? (searchParams.get('assignee') ?? '') : hadParams ? '' : actor,
-  )
-  const [status, setStatus] = useState<'' | TaskStatus>(() => {
-    const s = searchParams.get('status')
-    return s && (TASK_COLUMNS as string[]).includes(s) ? (s as TaskStatus) : ''
-  })
+  const initial = readTaskFilters(searchParams, actor)
+  const [q, setQ] = useState(initial.q)
+  const [assignee, setAssignee] = useState(initial.assignee)
+  const [status, setStatus] = useState<SearchStatus>(initial.status)
+  const [project, setProject] = useState(initial.project)
+  const [archived, setArchived] = useState(initial.archived)
   const [results, setResults] = useState<TaskSummary[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const request = useRef(0)
+  const refreshCommitted = useRef<(() => Promise<void>) | null>(null)
 
-  // Reflect the active filters into the URL query (omitting empties) so the view is a stable,
-  // bookmarkable link. Called when the user runs a search (submit / status change / a shortcut),
-  // not on every keystroke or on mount, so a bare /search stays bare until you act.
-  function syncUrl(vals: { q: string; assignee: string; status: '' | TaskStatus }) {
-    const next: Record<string, string> = {}
-    if (vals.q.trim()) next.q = vals.q.trim()
-    if (vals.assignee.trim()) next.assignee = vals.assignee.trim()
-    if (vals.status) next.status = vals.status
-    setSearchParams(next, { replace: true })
+  function syncUrl(vals: { q: string; assignee: string; status: SearchStatus }) {
+    const filters = { ...vals, project, archived }
+    const next = taskSearchParams(filters)
+    if (next.toString() === searchParams.toString()) void run(filters)
+    else setSearchParams(next)
   }
 
-  async function run(override?: { q?: string; assignee?: string; status?: '' | TaskStatus }) {
-    const qq = override?.q ?? q
-    const aa = override?.assignee ?? assignee
-    const ss = override?.status ?? status
+  async function run(filters: TaskFilters = readTaskFilters(searchParams, actor)) {
+    const generation = ++request.current
+    setResults(null)
     setLoading(true)
     setError(null)
     try {
-      setResults(
-        await api.listTasks({
-          q: qq.trim() || undefined,
-          assignee: aa.trim() || undefined,
-          status: ss || undefined,
-        }),
-      )
+      const pages = await Promise.all(taskSearchQueries(filters).map(query => api.listTasks(query)))
+      if (request.current === generation) setResults([...new Map(pages.flat().map(t => [t.id, t])).values()].sort((a, b) => a.id - b.id))
     } catch (e) {
-      setError((e as Error).message)
+      if (request.current === generation) setError((e as Error).message)
     } finally {
-      setLoading(false)
+      if (request.current === generation) setLoading(false)
     }
   }
 
-  // Load "my tasks" on first mount (assignee defaults to you).
+  // URL navigation (including Back/Forward) is the committed search; form inputs are drafts.
   useEffect(() => {
-    void run()
-    // Intentionally run once on mount; subsequent runs are user- or mutation-driven.
-  }, [])
+    const filters = readTaskFilters(searchParams, actor)
+    setQ(filters.q)
+    setAssignee(filters.assignee)
+    setStatus(filters.status)
+    setProject(filters.project)
+    setArchived(filters.archived)
+    refreshCommitted.current = () => run(filters)
+    void run(filters)
+    return () => { refreshCommitted.current = null; request.current++ }
+  }, [searchParams, actor])
 
   async function setTaskStatus(id: number, s: TaskStatus) {
     try {
       await updateTask(id, { status: s, principal: actor })
-      await run()
+      await refreshCommitted.current?.()
     } catch (e) {
       window.alert((e as Error).message)
     }
@@ -88,7 +85,7 @@ export default function Search() {
     if (!body?.trim()) return
     try {
       await commentTask(id, { body: body.trim(), principal: actor })
-      await run()
+      await refreshCommitted.current?.()
     } catch (e) {
       window.alert((e as Error).message)
     }
@@ -103,7 +100,6 @@ export default function Search() {
           onSubmit={(e) => {
             e.preventDefault()
             syncUrl({ q, assignee, status })
-            void run()
           }}
         >
           <input
@@ -121,20 +117,26 @@ export default function Search() {
           <select
             value={status}
             onChange={(e) => {
-              const s = e.target.value as '' | TaskStatus
+              const s = e.target.value as SearchStatus
               setStatus(s)
               syncUrl({ q, assignee, status: s })
-              void run({ status: s })
             }}
             className="rounded-md border border-[var(--color-border)] bg-[var(--color-panel-2)] px-2 py-1 text-sm outline-none focus:border-sky-500/50"
           >
             <option value="">any status</option>
-            {TASK_COLUMNS.map((s) => (
+            <option value="open">open (including icebox)</option>
+            <option value="active">todo, in progress or blocked</option>
+            {SEARCH_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABEL[s]}
+                {s === 'icebox' ? 'Icebox' : STATUS_LABEL[s]}
               </option>
             ))}
           </select>
+          <select aria-label="Project" value={project} onChange={e => setProject(e.target.value)} className="rounded border border-[var(--color-border)] bg-[var(--color-panel-2)] px-2 py-1 text-sm">
+            <option value="">All projects</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <label className="text-xs"><input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} /> Include archived tasks</label>
           <button
             type="submit"
             className="rounded-md bg-sky-500/20 px-3 py-1 text-sm text-sky-200 hover:bg-sky-500/30"

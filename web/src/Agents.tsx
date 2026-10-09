@@ -1,3 +1,4 @@
+import AgentParameters from './AgentParameters'
 import { Link } from 'react-router-dom'
 import { useScrollRestoration } from './scrollRestore'
 import { type Agent, type AgentStatus } from './api'
@@ -69,6 +70,7 @@ export default function Agents() {
                     <span>· {repos.length} repo{repos.length === 1 ? '' : 's'}</span>
                   )}
                 </div>
+                <AgentParameters agent={a} compact />
                 {a.status_message && (
                   <p className="mt-1 pl-4 text-xs italic text-[var(--color-muted)] line-clamp-1">
                     {a.status_message}

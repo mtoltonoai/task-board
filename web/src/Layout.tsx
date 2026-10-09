@@ -26,6 +26,7 @@ import { useConnectionHealth } from './store'
 import { type ThemePref, useTheme } from './theme'
 import { AGENT_DOT, relTime, UnreadBadge } from './ui'
 import { WikiTree } from './WikiTree'
+import { resolveActor } from './actorSelection'
 
 // A thin top banner shown while the backend is unreachable (e.g. the 502 window during a backend
 // deploy) or the live stream is down. The board keeps its last-good content and auto-retries in
@@ -87,7 +88,7 @@ function readForcedUser(): string | null {
 // actions are attributed and you aren't notified of your own changes. Trust-on-first-use, no auth.
 function useActor(): { actor: string; setActor: (v: string) => void; forcedUser: string | null } {
   const forcedUser = useMemo(() => readForcedUser(), [])
-  const [actor, setActor] = useState(() => forcedUser ?? localStorage.getItem('tb-actor') ?? 'human')
+  const [actor, setActor] = useState(() => resolveActor(forcedUser, localStorage.getItem('tb-actor')))
   const set = (v: string) => {
     if (forcedUser) return // server-enforced identity: immutable in the client
     const id = v.trim() || 'human'

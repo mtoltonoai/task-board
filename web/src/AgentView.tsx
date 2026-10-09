@@ -1,3 +1,4 @@
+import AgentParameters from './AgentParameters'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useBoardContext } from './Layout'
@@ -265,6 +266,8 @@ export default function AgentView() {
               </>
             )}
           </dl>
+
+          <AgentParameters agent={agent} />
 
           {repos.length > 0 && (
             <div className="mb-5">

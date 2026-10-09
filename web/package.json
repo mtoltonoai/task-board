@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:search": "node --experimental-strip-types --test scripts/task-search.test.mjs scripts/search-navigation.test.cjs",
+    "test:awaiting": "node --experimental-strip-types --test scripts/actor-selection.test.mjs",
+    "test:agents": "node --experimental-strip-types --test scripts/agent-parameters.test.mjs"
   },
   "dependencies": {
     "age-encryption": "^0.3.1",
@@ -29,6 +32,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "jiti": "2.7.0",
     "oxlint": "^1.81.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",

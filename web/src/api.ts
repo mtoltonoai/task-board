@@ -15,6 +15,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done' | 'cancelle
 export type AgentStatus = 'online' | 'busy' | 'away' | 'offline'
 
 export interface Agent {
+  lifecycle_intent?: string | null
   id: string
   display_name: string | null
   kind: string | null
@@ -723,6 +724,7 @@ export const api = {
 
   listTasks: (
     q: {
+      include_archived?: boolean
       project_id?: number
       status?: string
       assignee?: string
@@ -740,6 +742,7 @@ export const api = {
     if (q.parent_id != null) p.set('parent_id', String(q.parent_id))
     if (q.top_level) p.set('top_level', 'true')
     if (q.q) p.set('q', q.q)
+    if (q.include_archived) p.set('include_archived', 'true')
     const qs = p.toString()
     return req<TaskSummary[]>('GET', `/tasks${qs ? `?${qs}` : ''}`)
   },
