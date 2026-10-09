@@ -609,7 +609,16 @@ fn rewrite_acting_fields(bytes: &[u8], user: &str) -> Vec<u8> {
 /// Absent when the host is permissive or no trusted header was present (then read-scoping treats the
 /// caller as unidentified -> fail-closed once enforcement is enabled; a no-op while it is off).
 #[derive(Clone)]
-struct ForcedViewer(String);
+pub(crate) struct ForcedViewer(pub(crate) String);
+
+/// Isolated lifecycle API constructor. Not mounted by the production router.
+/// Reuses the existing front-door identity context; never trusts JSON attribution.
+#[allow(dead_code)]
+pub(crate) fn lifecycle_router(state: AppState, policy: crate::lifecycle::Policy) -> Router {
+    crate::lifecycle::router(state.pool.clone(), policy).layer(
+        axum::middleware::from_fn_with_state(state, force_trusted_user),
+    )
+}
 
 /// Middleware: force the acting user from a per-host trusted header (task_1030, operator request).
 /// The behavior is driven entirely by the `[hosts.'<name>']` config matched on the request's `Host`:
